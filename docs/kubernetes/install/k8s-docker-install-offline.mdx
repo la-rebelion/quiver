@@ -1,0 +1,351 @@
+---
+sidebar_label: 'Install Kubernetes in Ubuntu'
+sidebar_position: 1
+---
+import ReactPlayer from 'react-player'
+
+# Steps to install Kubernetes in Ubuntu 22.04
+
+All the commands, step by step on how to install Docker and Kubernetes in an offline environment. We will need `multipass` installed.
+
+<ReactPlayer playing controls url='https://youtu.be/f71Z6SVzhVg' />
+
+```bash
+# 0 what options do we have?
+multipass find
+# my 'online VM' Ubuntu 22.04
+multipass launch --name pc-online --cpus 2 --mem 2048M --disk 5G jammy
+# 1 Create 2 nodes 'flavors': master and worker
+multipass launch --name master-k8s --cpus 2 --mem 3G --disk 6G jammy
+multipass launch --name worker1-k8s --cpus 2 --mem 3G --disk 6G jammy
+#multipass launch --name docker-registry --cpus 2 --mem 2048M --disk 10G
+
+# 2 Check if we have the VMs running and setup your local DNS (to connect easily - I tend to forget IPs :p)
+multipass list
+primary                 172.24.223.205
+master-k8s              172.24.216.0  
+pc-online               172.24.213.201
+"192.x.x.x   master-k8s" >> C:\Windows\System32\drivers\etc\hosts
+# More than one line
+@"192.x.x.x   master-k8s
+192.x.x.x   worker1-k8s
+"@ | out-file C:\Windows\System32\drivers\etc\hosts -enc ASCII -append
+cat C:\Windows\System32\drivers\etc\hosts
+
+# previous command is similar to this in Linux:
+cat <<EOF > /etc/hosts
+master-k8s  172.24.216.54
+worker1-k8s 172.24.222.216
+EOF
+
+# multipass configuration - mount directory in PC host to "simulate" scp/transfer files - we will see this later
+
+## 3 Download Docker (online machine/Docker host)
+multipass shell pc-online
+# Update the apt package index
+sudo apt-get update
+sudo apt-get -y install \
+  apt-transport-https \
+  ca-certificates \
+  curl \
+  gnupg \
+  lsb-release \
+  sshfs
+
+mkdir -p ~/lr-airgap/docker-ce
+cd ~/lr-airgap/docker-ce
+# Please install the 'multipass-sshfs' snap manually inside the instance
+# GOTO PowerShell window
+PS: multipass mount . pc-online:~/lr-airgap
+
+# Add Docker’s official GPG key:
+sudo mkdir -p /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+
+# set up the repository:
+echo \
+"deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
+$(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+sudo apt-get update
+# if a GPG error when
+sudo chmod a+r /etc/apt/keyrings/docker.gpg
+
+# download required files
+#https://ostechnix.com/download-packages-dependencies-locally-ubuntu/
+sudo apt-get download docker-ce docker-ce-cli containerd.io docker-compose-plugin
+# Ignore Warning like: "W: ... _apt ..."
+
+#Docker Engine does not implement the CRI, it was removed from the kubelet in version 1.24.
+#https://github.com/Mirantis/cri-dockerd/releases
+wget https://github.com/Mirantis/cri-dockerd/releases/download/v0.2.3/cri-dockerd_0.2.3.3-0.ubuntu-jammy_amd64.deb
+
+
+## 4 Download Kubernetes (online machine/Docker host)
+
+# install the Kubernetes repository:
+sudo curl -fsSLo /usr/share/keyrings/kubernetes-archive-keyring.gpg https://packages.cloud.google.com/apt/doc/apt-key.gpg
+echo "deb [signed-by=/usr/share/keyrings/kubernetes-archive-keyring.gpg] https://apt.kubernetes.io/ kubernetes-xenial main" | sudo tee /etc/apt/sources.list.d/kubernetes.list
+sudo apt-get update
+
+mkdir -p ~/lr-airgap/kube && cd $_
+sudo apt-get download kubelet=1.24.* kubeadm=1.24.* kubectl=1.24.* cri-tools=1.24.* conntrack ebtables kubernetes-cni socat selinux-utils
+
+
+## 5 Copy the Docker files from the online machine to the offline machine
+cd
+tar -czvf lr-d4r-k8s.tar.gz lr-airgap
+# Connect to your offline machine
+multipass shell master-k8s
+#ssh ubuntu@master-k8s
+mkdir ~/lr-airgap
+# In your online-pc
+#scp lr-d4r-k8s.tar.gz ubuntu@master-k8s:~/lr-airgap
+tar -xzvf lr-d4r-k8s.tar.gz -C /
+
+## 6 Install Docker (offline machine)
+# Install yum utilities (offline machine)
+cd ~/lr-airgap/docker-ce
+sudo dpkg -i *
+# install Docker file drivers:
+# Already installed on Ubuntu: lvm2
+
+# enable and start docker service:
+sudo systemctl enable docker
+sudo systemctl start docker
+# verify docker:
+sudo systemctl status docker
+sudo systemctl daemon-reload
+sudo systemctl enable cri-docker.service
+sudo systemctl enable --now cri-docker.socket
+sudo docker version
+
+## 7 Install Kubernetes - Kubeadm (offline machine)
+cd ~/lr-airgap/kube
+sudo dpkg -i *
+sudo apt-mark hold kubelet kubeadm kubectl
+
+# run kubeadm, which returns a list of required images:
+kubeadm config images list
+
+# A list of required images is displayed, probably with an error, due to the lack of connectivity to Internet:
+
+### 7.1 Bootstrapping the Kubernetes Control Plane
+
+# In your Multipass VM ("online PC"), pull and save required Kubernetes images
+
+#### Download required Kubernetes Images
+mkdir k8s-images
+cd k8s-images
+# pull the images
+sudo docker pull k8s.gcr.io/kube-apiserver:v1.24.3
+sudo docker pull k8s.gcr.io/kube-controller-manager:v1.24.3
+sudo docker pull k8s.gcr.io/kube-scheduler:v1.24.3
+sudo docker pull k8s.gcr.io/kube-proxy:v1.24.3
+sudo docker pull k8s.gcr.io/pause:3.7
+sudo docker pull k8s.gcr.io/etcd:3.5.3-0
+sudo docker pull k8s.gcr.io/coredns/coredns:v1.8.6
+# save images as TAR archives
+sudo docker save k8s.gcr.io/kube-apiserver:v1.24.3 > kube-apiserver_v1.24.3.tar
+sudo docker save k8s.gcr.io/kube-controller-manager:v1.24.3 > kube-controller-manager_v1.24.3.tar
+sudo docker save k8s.gcr.io/kube-scheduler:v1.24.3 > kube-scheduler_v1.24.3.tar
+sudo docker save k8s.gcr.io/kube-proxy:v1.24.3 > kube-proxy_v1.24.3.tar
+sudo docker save k8s.gcr.io/pause:3.7 > pause_3.7.tar
+sudo docker save k8s.gcr.io/etcd:3.5.3-0 > etcd_3.5.3-0.tar
+sudo docker save k8s.gcr.io/coredns/coredns:v1.8.6  > coredns_1.8.6.tar
+# Package all TAR files
+tar -czvf k8s-images.tar.gz 
+# copy to offline server
+#scp k8s-images.tar.gz ubuntu@master-k8s:~/lr-airgap
+
+#### Load Kubernetes Images (offline machine)
+# extract images
+mkdir -p ~/lr-airgap/k8s-images
+cd ~/lr-airgap/
+tar -xzvf k8s-images.tar.gz -C ~/lr-airgap/k8s-images
+# unpack and load images
+for x in *.tar; do sudo docker load < $x && echo "loaded from file $x"; done;
+
+### 8 Provisioning Network
+
+# We chose to use Flannel as our networking option. https://kubernetes.io/docs/concepts/cluster-administration/networking/#flannel
+
+# Flannel is a virtual network that gives a subnet to each host for use with container runtimes.
+# Don't you like Flannel? Check other options [here](https://kubernetes.io/docs/concepts/cluster-administration/networking/).
+
+##### Download networking files (online machine)
+
+wget https://raw.githubusercontent.com/coreos/flannel/master/Documentation/kube-flannel.yml
+# find the flannel image version
+grep image kube-flannel.yml
+# download and save the required image (from previous command)
+sudo docker pull docker.io/rancher/mirrored-flannelcni-flannel-cni-plugin:v1.1.0
+sudo docker pull docker.io/rancher/mirrored-flannelcni-flannel:v0.19.0
+sudo docker save docker.io/rancher/mirrored-flannelcni-flannel-cni-plugin:v1.1.0 > flannel-cni-plugin-v1.1.0.tar
+sudo docker save docker.io/rancher/mirrored-flannelcni-flannel:v0.19.0 > flannel-v0.19.0.tar
+# zip the files
+tar -czvf flannel_v0.19.0.tar.gz flannel_v0.19.0.tar kube-flannel.yml
+#gzip -v flannel_v0.19.0.tar
+# copy to offline server
+#scp flannel_v0.19.0.tar.gz root@master-k8s:~/lr-airgap
+
+##### Install Kubernetes networking files (offline machine)
+
+cd ~/lr-airgap/
+# unpack the networking image:
+tar -xzvf flannel_v0.19.0.tar.gz
+#gzip -d flannel_v0.19.0.tar.gz
+sudo docker load < flannel-cni-plugin-v1.1.0.tar
+sudo docker load < flannel-v0.19.0.tar
+
+##### Download NGINX images (online machine)
+#https://github.com/kubernetes/ingress-nginx
+#https://kubernetes.io/docs/concepts/services-networking/ingress/
+
+mkdir nginx
+cd nginx
+# download yaml descriptor:
+wget https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/baremetal/1.24/deploy.yaml
+
+# download and save the images:
+sudo docker pull registry.k8s.io/ingress-nginx/controller:v1.3.0
+sudo docker pull registry.k8s.io/ingress-nginx/kube-webhook-certgen:v1.1.1
+sudo docker save registry.k8s.io/ingress-nginx/controller:v1.3.0 > nginx-controller-v1.3.0.tar
+sudo docker save registry.k8s.io/ingress-nginx/kube-webhook-certgen:v1.1.1 > kube-webhook-certgen-v1.5.0.tar
+cd ..
+tar -czvf nginx.tar.gz nginx
+#scp nginx.tar.gz root@master-k8s:~/lr-airgap
+
+##############################################################
+# NOTE: if ERROR with certificates when pulling images from k8s registry, follow this steps:
+mkdir -p /etc/docker/certs.d/registry.k8s.io
+# Download the certificates https://stackoverflow.com/a/70011298/5078874
+openssl s_client -showcerts \
+-connect registry.k8s.io:443 </dev/null 2>/dev/null \
+| sed -n '/-----BEGIN CERTIFICATE-----/,/-----END CERTIFICATE-----/p'  > ~/registry-k8s.crt
+# move the certificate to /etc/docker/certs.d/registry.k8s.io
+# https://velaninfo.com/rs/techtips/docker-certificate-authority/
+# https://www.ibm.com/docs/en/cloud-paks/cp-management/2.2.x?topic=tcnm-logging-into-your-docker-registry-fails-x509-certificate-signed-by-unknown-authority-error
+mv ~/registry-k8s.crt /etc/docker/certs.d/registry.k8s.io/
+# Create file /etc/docker/daemon.json and add insecure-registries
+sudo bash -c 'cat <<EOF >  /etc/docker/daemon.json
+{ "insecure-registries" : ["registry.k8s.io:443"] }
+EOF'
+# restart the docker service
+systemctl restart docker
+##############################################################
+
+
+##### Load NGINX images (offline machine)
+
+cd ~/lr-airgap/
+tar -xzvf nginx.tar.gz -C ~/lr-airgap
+cd nginx
+# unpack and load images
+for x in *.tar; do sudo docker load < $x && echo "loaded from file $x"; done;
+
+## Deploying Kubernetes cluster (offline machine)
+
+sudo hostnamectl set-hostname 'master-k8s'
+# disable swap for the current session or comment out swap partitions or swap file from fstab file
+swapoff -a
+# Ensure that SELinux is in permissive mode
+setenforce 0
+#https://stackoverflow.com/a/18836896/5078874
+#sudo sed -i 's/^SELINUX=enforcing$/SELINUX=permissive/' /etc/selinux/config
+# assuming the file does not exist
+sudo touch /etc/selinux/config
+sudo bash -c 'cat <<EOF >  /etc/selinux/config
+SELINUX=permissive
+EOF'
+sudo bash -c 'cat <<EOF >  /etc/sysctl.d/k8s.conf
+net.bridge.bridge-nf-call-ip6tables = 1
+net.bridge.bridge-nf-call-iptables = 1
+EOF'
+
+sudo sysctl --system
+
+# In case you don’t have your own dns server then update /etc/hosts file on master and worker nodes
+IP_NODE=$(ip addr show eth0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1)
+sudo bash -c "cat <<EOF >> /etc/hosts
+$(ip addr show eth0 | grep 'inet\b' | awk '{print $2}' | cut -d/ -f1) $(hostname)
+EOF"
+# More workers/masters here
+
+# configure kubectl autocompletion:
+#echo "source <(kubectl completion bash)" >> ~/.bashrc
+# Previous steps need to be done on each cluster's machine before continuing
+# enable kubelet service
+sudo systemctl enable kubelet.service
+kubectl version
+
+# Matching the container runtime and kubelet cgroup drivers is required, systemd driver is recommended for kubeadm based setups instead of the cgroupfs driver
+#https://kubernetes.io/docs/tasks/administer-cluster/kubeadm/configure-cgroup-driver/
+cat <<EOF >  kubeadm-config.yaml
+# kubeadm-config.yaml
+kind: ClusterConfiguration
+apiVersion: kubeadm.k8s.io/v1beta3
+kubernetesVersion: v1.21.0
+---
+kind: KubeletConfiguration
+apiVersion: kubelet.config.k8s.io/v1beta1
+cgroupDriver: systemd   # <--- driver
+EOF
+
+#https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm-init/
+#kubeadm init --config kubeadm-config.yaml --pod-network-cidr=10.244.0.0/16 --kubernetes-version=v1.24.3 > ~/kubeadm.init.log
+sudo kubeadm init --apiserver-advertise-address=172.24.216.54 --pod-network-cidr=10.244.0.0/16 --kubernetes-version=v1.24.3 --cri-socket=unix:///var/run/cri-dockerd.sock  --ignore-preflight-errors=Mem > ~/kubeadm.init.log
+# IMPORTANT: ~/kubeadm.init.log generated file include the token required to join the worker nodes to the cluster
+# https://stackoverflow.com/a/72878730/5078874
+
+############### FOR THE WORKER
+kubeadm join 172.24.216.54:6443 --token YOUR.TOKEN \
+        --discovery-token-ca-cert-hash sha256:YOUR-CERT \
+        --kubernetes-version=v1.24.3 --cri-socket=unix:///var/run/cri-dockerd.sock
+###############
+
+mkdir -p $HOME/.kube
+sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+# verify the node is running:
+kubectl get nodes
+# configure kubectl to manage your cluster:
+grep -q "KUBECONFIG" ~/.bashrc || {
+    echo 'export KUBECONFIG=$HOME/.kube/config' >> ~/.bashrc
+    . ~/.bashrc
+}
+
+cd ~/lr-airgap/
+# initiate the Flannel network in Control Plane node:
+kubectl apply -f kube-flannel.yml
+# for security reasons, the cluster does not schedule pods on the Control plane node by default.
+
+# ONLY IF YOU WANT A SINGLE NODE CLUSTER
+# Executing this command removes the node-role.kubernetes.io/master 
+# taint from any nodes that have it, so that the scheduler can schedule pods everywhere:
+#kubectl taint nodes --all node-role.kubernetes.io/master-
+
+### Join worker nodes to the cluster
+
+# Find the join command string saved in a previous step in file: ~/kubeadm.init.log
+grep "kubeadm join" ~/kubeadm.init.log
+
+# Verify nodes and components:
+kubectl get nodes
+kubectl get componentstatuses
+
+## Tests
+
+### Smoke Tests
+#https://github.com/mmumshad/kubernetes-the-hard-way/blob/master/docs/15-smoke-test.md
+
+### Run End-to-End Tests
+#https://github.com/mmumshad/kubernetes-the-hard-way/blob/master/docs/16-e2e-tests.md
+#https://github.com/kubernetes/test-infra
+
+```
+
+References:  
+
+* [install-using-the-repository](https://docs.docker.com/engine/install/ubuntu/#install-using-the-repository)
