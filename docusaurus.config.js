@@ -8,16 +8,17 @@ const darkCodeTheme = require('prism-react-renderer/themes/dracula');
 const config = {
   title: 'Quiver by La Rebelion',
   tagline: 'The arrows to be more productive as a dev or sysadmin',
-  url: 'https://quiver.rebelion.la',
+  url: 'https://quiver.rebelion.la/',
   baseUrl: '/',
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'warn',
   favicon: 'img/favicon.ico',
+  trailingSlash: false,
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
   organizationName: 'la-rebelion', // Usually your GitHub org/user name.
-  projectName: 'quiver', // Usually your repo name.
+  projectName: 'quiver.rebelion.la', // Usually your repo name.
 
   // Even if you don't use internalization, you can use this field to set useful
   // metadata like html lang. For example, if your site is Chinese, you may want
