@@ -18,7 +18,10 @@ const config = {
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
   organizationName: 'la-rebelion', // Usually your GitHub org/user name.
-  projectName: 'quiver.rebelion.la', // Usually your repo name.
+  projectName: 'quiver', // Usually your repo name.
+  // git@github.com:la-rebelion/quiver.git      <-- your ssh URI
+  //                   |          |
+  //           organizationName  projectName
 
   // Even if you don't use internalization, you can use this field to set useful
   // metadata like html lang. For example, if your site is Chinese, you may want
@@ -41,6 +44,9 @@ const config = {
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
         },
+        gtag: {
+          trackingID: 'G-SWE8807L5G',
+        },
       }),
     ],
   ],
@@ -48,6 +54,7 @@ const config = {
   themeConfig:
     /** @type {import('@docusaurus/preset-classic').ThemeConfig} */
     ({
+      metadata: [{name: 'keywords', content: 'kubernetes, helm, docker, cloud'}],
       navbar: {
         title: 'Quiver',
         logo: {
@@ -59,9 +66,9 @@ const config = {
             type: 'doc',
             docId: 'intro',
             position: 'left',
-            label: 'Quiver',
+            label: 'Scripts',
           },
-          {to: 'https://rebelion.la', label: 'La Rebelion', position: 'left'},
+          {to: 'https://rebelion.la', label: 'Blog', position: 'left'},
           {
             href: 'https://github.com/la-rebelion/quiver',
             label: 'GitHub',
@@ -76,7 +83,7 @@ const config = {
             title: 'Docs',
             items: [
               {
-                label: 'Quiver',
+                label: 'Scripts',
                 to: '/',
               },
             ],

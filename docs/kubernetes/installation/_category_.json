@@ -1,0 +1,8 @@
+{
+  "label": "Kubernetes-Installation",
+  "position": 1,
+  "link": {
+    "type": "generated-index",
+    "description": "Kubernetes installation guides and scripts."
+  }
+}
