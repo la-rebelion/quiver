@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: my-rebel-pod
+spec:
+  securityContext:
+    seccompProfile:
+      type: Localhost
+      localhostProfile: my-rebel-seccomp-profile.json
+  containers:
+  - name: my-rebel-container
+    image: busybox
+    command: ["sh", "-c", "echo Hello, World!"]
+    securityContext:
+      capabilities:
+        drop:
+        - ALL
+        add:
+        - NET_ADMIN
+        - SYS_TIME

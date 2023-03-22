@@ -1,0 +1,8 @@
+{
+  "label": "Kubernetes-Security",
+  "position": 1,
+  "link": {
+    "type": "generated-index",
+    "description": "Best Practices for Securing Your Cluster."
+  }
+}

@@ -116,6 +116,10 @@ const config = {
                 label: 'GitHub',
                 href: 'https://github.com/la-rebelion/quiver',
               },
+              {
+                label: 'License',
+                href: 'http://creativecommons.org/licenses/by-sa/4.0/'
+              }
             ],
           },
         ],

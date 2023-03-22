@@ -1,0 +1,108 @@
+---
+sidebar_label: 'Penetration Testing'
+sidebar_position: 1
+title: Penetration Testing and Best Practices for Securing Your Cluster
+description: Protect Your Kubernetes Environment from Hackers with Expert Tips on Restricting Pod Communication, Seccomp Profiles, and Linux Capabilities Whitelist
+keywords: [Kubernetes, Security, Penetration Testing]
+---
+
+Protect Your Kubernetes Environment from Hackers with Expert Tips on Restricting Pod Communication, Seccomp Profiles, and Linux Capabilities Whitelist.
+
+From article at [Kubernetes Security: The Ultimate Guide to Penetration Testing and Best Practices for Securing Your Cluster](https://rebelion.la/kubernetes-security-guide-to-penetration-testing).
+
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+<Tabs>
+<TabItem value="yaml" label="Pods" default>
+
+```yaml
+#client
+apiVersion: v1
+kind: Pod
+metadata:
+  name: client
+spec:
+  containers:
+  - name: busybox
+    image: busybox
+    command: ['sleep', '3600']
+---
+# The server
+apiVersion: v1
+kind: Pod
+metadata:
+  name: server
+spec:
+  containers:
+  - name: busybox
+    image: busybox
+    command: ['httpd', '-f', '-h', '/var/www/']
+```
+
+</TabItem>
+<TabItem value="service" label="Service">
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: httpd-service
+spec:
+  selector:
+    app: httpd
+  ports:
+  - name: http
+    port: 80
+```
+
+</TabItem>
+<TabItem value="network" label="Network Policy">
+
+```yaml
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: pod-to-pod
+spec:
+  podSelector:
+    matchLabels:
+      app: busybox
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: busybox
+    ports:
+    - port: 80
+      protocol: TCP
+```
+
+</TabItem>
+<TabItem value="seccomp" label="Seccomp Profiles">
+
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: my-rebel-pod
+spec:
+  securityContext:
+    seccompProfile:
+      type: Localhost
+      localhostProfile: my-rebel-seccomp-profile.json
+  containers:
+  - name: my-rebel-container
+    image: busybox
+    command: ["sh", "-c", "echo Hello, World!"]
+    securityContext:
+      capabilities:
+        drop:
+        - ALL
+        add:
+        - NET_ADMIN
+        - SYS_TIME
+```
+
+</TabItem>
+</Tabs>

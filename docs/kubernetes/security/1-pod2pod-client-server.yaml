@@ -1,0 +1,22 @@
+#client
+apiVersion: v1
+kind: Pod
+metadata:
+  name: client
+spec:
+  containers:
+  - name: busybox
+    image: busybox
+    command: ['sleep', '3600']
+
+---
+# The server
+apiVersion: v1
+kind: Pod
+metadata:
+  name: server
+spec:
+  containers:
+  - name: busybox
+    image: busybox
+    command: ['httpd', '-f', '-h', '/var/www/']

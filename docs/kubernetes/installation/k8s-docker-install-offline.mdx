@@ -13,6 +13,18 @@ All the commands, step by step on how to install Docker and Kubernetes in an off
 
 <ReactPlayer playing controls url='https://youtu.be/f71Z6SVzhVg' />
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+---
+
+Click on each of the tabs to complete the whole installation. I have tried to separated each tab depending on the different goals.
+
+Follow the video above for specifics.
+
+<Tabs>
+<TabItem value="bash" label="1 📐 Setup" default>
+
 ```bash
 # 0 what options do we have?
 multipass find
@@ -40,7 +52,12 @@ cat <<EOF > /etc/hosts
 master-k8s  172.24.216.54
 worker1-k8s 172.24.222.216
 EOF
+```
 
+</TabItem>
+<TabItem value="download-docker" label="2 ⬇️ Docker">
+
+```sh
 # multipass configuration - mount directory in PC host to "simulate" scp/transfer files - we will see this later
 
 ## 3 Download Docker (online machine/Docker host)
@@ -82,8 +99,12 @@ sudo apt-get download docker-ce docker-ce-cli containerd.io docker-compose-plugi
 #Docker Engine does not implement the CRI, it was removed from the kubelet in version 1.24.
 #https://github.com/Mirantis/cri-dockerd/releases
 wget https://github.com/Mirantis/cri-dockerd/releases/download/v0.2.3/cri-dockerd_0.2.3.3-0.ubuntu-jammy_amd64.deb
+```
 
+</TabItem>
+<TabItem value="download-k8s" label="3 ⬇️ K8s">
 
+```sh
 ## 4 Download Kubernetes (online machine/Docker host)
 
 # install the Kubernetes repository:
@@ -93,8 +114,12 @@ sudo apt-get update
 
 mkdir -p ~/lr-airgap/kube && cd $_
 sudo apt-get download kubelet=1.24.* kubeadm=1.24.* kubectl=1.24.* cri-tools=1.24.* conntrack ebtables kubernetes-cni socat selinux-utils
+```
 
+</TabItem>
+<TabItem value="copy-and-install" label="4 🐋 Docker">
 
+```sh
 ## 5 Copy the Docker files from the online machine to the offline machine
 cd
 tar -czvf lr-d4r-k8s.tar.gz lr-airgap
@@ -122,7 +147,12 @@ sudo systemctl daemon-reload
 sudo systemctl enable cri-docker.service
 sudo systemctl enable --now cri-docker.socket
 sudo docker version
+```
 
+</TabItem>
+<TabItem value="install-k8s" label="5 ⚓ Kubernetes">
+
+```sh
 ## 7 Install Kubernetes - Kubeadm (offline machine)
 cd ~/lr-airgap/kube
 sudo dpkg -i *
@@ -168,7 +198,12 @@ cd ~/lr-airgap/
 tar -xzvf k8s-images.tar.gz -C ~/lr-airgap/k8s-images
 # unpack and load images
 for x in *.tar; do sudo docker load < $x && echo "loaded from file $x"; done;
+```
 
+</TabItem>
+<TabItem value="provision-network" label="6 🕸️ Network">
+
+```sh
 ### 8 Provisioning Network
 
 # We chose to use Flannel as our networking option. https://kubernetes.io/docs/concepts/cluster-administration/networking/#flannel
@@ -200,7 +235,12 @@ tar -xzvf flannel_v0.19.0.tar.gz
 #gzip -d flannel_v0.19.0.tar.gz
 sudo docker load < flannel-cni-plugin-v1.1.0.tar
 sudo docker load < flannel-v0.19.0.tar
+```
 
+</TabItem>
+<TabItem value="download-load-ingress" label="7 🚪 Ingress">
+
+```sh
 ##### Download NGINX images (online machine)
 #https://github.com/kubernetes/ingress-nginx
 #https://kubernetes.io/docs/concepts/services-networking/ingress/
@@ -246,7 +286,12 @@ tar -xzvf nginx.tar.gz -C ~/lr-airgap
 cd nginx
 # unpack and load images
 for x in *.tar; do sudo docker load < $x && echo "loaded from file $x"; done;
+```
 
+</TabItem>
+<TabItem value="deploy-cluster" label="8 🚀 Kubernetes">
+
+```sh
 ## Deploying Kubernetes cluster (offline machine)
 
 sudo hostnamectl set-hostname 'master-k8s'
@@ -328,7 +373,12 @@ kubectl apply -f kube-flannel.yml
 # Executing this command removes the node-role.kubernetes.io/master 
 # taint from any nodes that have it, so that the scheduler can schedule pods everywhere:
 #kubectl taint nodes --all node-role.kubernetes.io/master-
+```
 
+</TabItem>
+<TabItem value="join-nodes" label="9 👷🏽 Worker Nodes">
+
+```sh
 ### Join worker nodes to the cluster
 
 # Find the join command string saved in a previous step in file: ~/kubeadm.init.log
@@ -337,7 +387,12 @@ grep "kubeadm join" ~/kubeadm.init.log
 # Verify nodes and components:
 kubectl get nodes
 kubectl get componentstatuses
+```
 
+</TabItem>
+<TabItem value="test" label="10 🧪 Test">
+
+```sh
 ## Tests
 
 ### Smoke Tests
@@ -348,6 +403,19 @@ kubectl get componentstatuses
 #https://github.com/kubernetes/test-infra
 
 ```
+
+</TabItem>
+</Tabs>
+
+You did it!
+
+### Bonus
+
+You can also dowload the scripts I created based on the lab you just completed above.
+
+* [master-k8s-airgap.sh](../../../static/scripts/kubernetes-installation/master-k8s-airgap.sh) - Airgapped master node
+* [master-k8s-internet.sh](../../../static/scripts/kubernetes-installation/master-k8s-internet.sh) - If you have access to the Internet
+* [worker-k8s-airgap.sh](../../../static/scripts/kubernetes-installation/worker-k8s-airgap.sh) - Airgapped worker node
 
 References:  
 
