@@ -1,0 +1,165 @@
+---
+sidebar_label: Kubernetes Distros
+sidebar_position: 2
+title: "Install Kubernetes Distros: k0s, k3s, microk8s, and Minikube"
+description: "Installation of Popular Kubernetes Distros: k0s, k3s, microk8s, and Minikube"
+keywords:
+    - kubernetes
+    - install
+    - k0s
+    - k3s
+    - microk8s
+    - minikube
+preview: /img/og-images/install-kubernetes-distros.png
+---
+import ReactPlayer from 'react-player';
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+# Steps to Install Popular Kubernetes Distros
+
+We'll explore the installation process of each distro, enjoy the journey through creating Kubernetes clusters using some bash scripts I created for you! Download the scripts below. 👇🏽
+
+I decided to use plain bash scripts to remove any additional complexity in installing Ansible, Terraform, Argo, or other tools and external dependencies like Python, or external libraries, which also would remove the fat that consumes extra resources: CPU, RAM, and disk space that you may need to install the distros.
+
+<ReactPlayer playing controls url='https://youtu.be/U5gsp3rO5A0' />
+
+Click on each of the tabs to complete the whole installation. I have tried to separated each tab depending on the different goals.
+
+Follow the video above for specifics.
+
+---
+
+<Tabs>
+<TabItem value="k0s-master" label="K0s Master" default>
+
+```bash
+# download the K0s binary
+curl -sSLf https://get.k0s.sh | sudo sh
+# install K0s
+k0s install controller --enable-worker
+systemctl daemon-reload
+k0s start
+# check the status
+k0s status
+k0s kubectl get nodes
+watch 'k0s kubectl get pod --all-namespaces'
+k0s kubectl get nodes
+# create a token to join workers to the cluster
+k0s token create --role=worker > token-file
+```
+
+</TabItem>
+<TabItem value="k0s-worker" label="K0s Worker">
+
+```bash
+# download the K0s binary
+curl -sSLf https://get.k0s.sh | sudo sh
+# install K0s
+k0s install worker --token-file token-file
+systemctl daemon-reload
+k0s start
+# check the status
+k0s status
+```
+
+</TabItem>
+<TabItem value="k3s-master" label="K3s Master">
+
+
+```bash
+# install K3s
+curl -sfL https://get.k3s.io | sh - 
+# Check for Ready node, takes ~30 seconds 
+k3s kubectl get nodes 
+# Check for Ready pod, takes ~60 seconds
+watch 'k3s kubectl get pod --all-namespaces'
+# get the token to join workers to the cluster
+cat /var/lib/rancher/k3s/server/node-token
+```
+
+</TabItem>
+<TabItem value="k3s-worker" label="K3s Worker">
+
+```bash
+curl -sfL https://get.k3s.io | K3S_URL=https://k3s1-rebelion:6443 K3S_TOKEN=mynodetoken INSTALL_K3S_EXEC="agent" sh -
+
+#agent node is not joining the cluster - Workaround:
+sudo systemctl stop k3s
+#start the agent in the background
+sudo k3s agent --server https://k3s1-rebelion:6443 -t mynodetoken --disable-apiserver-lb > /dev/null 2>&1 &
+```
+
+</TabItem>
+<TabItem value="microk8s-master" label="Microk8s Master">
+
+```bash
+# install snapd
+apt update
+apt install snapd
+# install microk8s
+snap install microk8s --classic
+# Run the command and store the output
+join_command=$(microk8s add-node | tail -n 1) 
+echo $join_command --worker
+```
+
+</TabItem>
+<TabItem value="microk8s-worker" label="Microk8s Worker">
+
+```bash
+#install snapd
+sudo apt update
+sudo apt install snapd
+#install microk8s
+sudo snap install microk8s --classic
+#join the cluster, with output from the previous step
+sudo $join_command
+
+microk8s kubectl get nodes
+```
+
+</TabItem>
+<TabItem value="minikube" label="Minikube">
+
+`multipass` provides a VM image with minikube pre-installed, so we can use it to 
+create a VM with minikube pre-installed.
+
+The bad news is that `minikube` VM image requires at least 2 CPUs, 4GB of RAM, 
+and 40GB of disk space, huge compared to the other distros! 🐳
+
+```bash
+# create the VM with minikube pre-installed
+multipass launch --name minikube-rebelion -c 2 -m 4G -d 40G minikube
+multipass exec minikube-rebelion -- minikube start --nodes 3 -p la-rebelion-cluster
+```
+
+</TabItem>
+</Tabs>
+
+**Don't forget to like the video and share if you learned somemthing useful.** 🤓
+
+🐧 Enjoy coding, enjoy life, go Rebels! ✊🏽 ☁️ 🚀 
+
+## References and Resources
+
+📖 _La Rebelion_ [Blog](https://rebelion.la/). ✊🏽  
+📽️ [Full video](https://go.rebelion.la/kubernetes-distros-installation-video)  
+👉 [Subscribe to "La Rebelion" community](https://go.rebelion.la/subscribe) for more tech insights, tutorials, and breakthroughs.  
+💻 [K1s Terminal](https://go.rebelion.la/k1st) simplifies Kubernetes and Cloud-Native Operations.
+
+## Let's innovate together! 🌟💡
+
+### Bonus
+
+You can also dowload the scripts I created based on the lab you just completed above.
+
+* [kubernetes-distros-install-scripts.zip](../../../static/scripts/kubernetes-distros-installation-scripts/kubernetes-distros-install-scripts.zip) - All the scripts in a zip file
+* [kubernetes-distros-installation.sh](../../../static/scripts/kubernetes-distros-installation-scripts/kubernetes-distros-installation.sh) - The main script
+* [_k0s-master.sh](../../../static/scripts/kubernetes-distros-installation-scripts/_k0s-master.sh) - The k0s Master node script
+* [_k0s-worker.sh](../../../static/scripts/kubernetes-distros-installation-scripts/_k0s-worker.sh) - The k0s Worker node script
+* [_k3s-master.sh](../../../static/scripts/kubernetes-distros-installation-scripts/_k3s-master.sh) - The k3s Master node script
+* [_k3s-worker.sh](../../../static/scripts/kubernetes-distros-installation-scripts/_k3s-worker.sh) - The k3s Worker node script
+* [_microk8s-server.sh](../../../static/scripts/kubernetes-distros-installation-scripts/_microk8s-server.sh) - The microk8s Master node script
+* [_microk8s-worker.sh](../../../static/scripts/kubernetes-distros-installation-scripts/_microk8s-worker.sh) - The microk8s Worker node script
+* Minikube - Included in the main script
